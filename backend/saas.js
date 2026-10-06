@@ -100,7 +100,7 @@ function quota(req, res, next) {
 
 // ---------- PayPal ----------
 async function ppToken() {
-  const id = process.env.PAYPAL_CLIENT_ID, sec = process.env.PAYPAL_SECRET;
+  const id = process.env.PAYPAL_CLIENT_ID, sec = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET;
   if (!id || !sec) throw new Error('PAYPAL_NO_CONFIG');
   const base = process.env.PAYPAL_MODE === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
   const r = await fetch(base + '/v1/oauth2/token', {
