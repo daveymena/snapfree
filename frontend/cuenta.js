@@ -4,10 +4,10 @@
   const loginTab = $('loginTab');
   const registerTab = $('registerTab');
   const password = $('password');
-  let mode = 'login';
   const params = new URLSearchParams(location.search);
   const candidate = new URL(params.get('next') || 'index.html', location.origin);
   const nextPage = candidate.origin === location.origin ? candidate.pathname + candidate.search + candidate.hash : 'index.html';
+  let mode = 'login';
 
   function setMode(next) {
     mode = next;
@@ -33,63 +33,6 @@
 
   loginTab.addEventListener('click', () => setMode('login'));
   registerTab.addEventListener('click', () => setMode('register'));
-  function showGoogleError(message) {
-    const el = $('googleMessage');
-    el.textContent = message;
-  }
-
-  async function handleGoogleCredential(response) {
-    const button = $('googleButton');
-    button.setAttribute('aria-busy', 'true');
-    showGoogleError('Verificando tu cuenta…');
-    try {
-      const result = await fetch('/api/auth/google/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: response.credential })
-      });
-      const data = await result.json().catch(() => ({}));
-      if (!result.ok) throw new Error(data.message || 'No se pudo verificar tu cuenta de Google.');
-      localStorage.setItem('snapfree_token', data.token);
-      showGoogleError('Acceso correcto. Te estamos llevando a SnapFree.');
-      $('googleMessage').classList.add('is-success');
-      window.location.assign(nextPage);
-    } catch (error) {
-      button.removeAttribute('aria-busy');
-      showGoogleError(error.message || 'No se pudo completar el acceso con Google.');
-    }
-  }
-
-  async function setupGoogle() {
-    const message = $('googleMessage');
-    try {
-      const configResponse = await fetch('/api/auth/google/config');
-      const config = await configResponse.json();
-      if (!configResponse.ok || !config.clientId) throw new Error('El acceso con Google todavía no está configurado.');
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        if (!window.google?.accounts?.id) return showGoogleError('No se pudo cargar el acceso de Google.');
-        window.google.accounts.id.initialize({ client_id: config.clientId, callback: handleGoogleCredential, ux_mode: 'popup' });
-        window.google.accounts.id.renderButton($('googleButton'), {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'continue_with',
-          shape: 'rectangular',
-          width: Math.min(430, $('googleButton').clientWidth || 430),
-          logo_alignment: 'left'
-        });
-      };
-      script.onerror = () => showGoogleError('No se pudo cargar el acceso de Google.');
-      document.head.appendChild(script);
-    } catch (error) {
-      message.textContent = error.message;
-    }
-  }
-  setupGoogle();
   $('togglePassword').addEventListener('click', (event) => {
     const show = password.type === 'password';
     password.type = show ? 'text' : 'password';
@@ -127,7 +70,7 @@
     window.location.reload();
   });
 
-  if (params.has('error')) showMessage('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
+  if (params.has('error')) showMessage('No se pudo iniciar sesión. Inténtalo de nuevo con correo y contraseña.');
   params.delete('error');
   if (location.search && !location.search.includes('token=')) {
     history.replaceState({}, document.title, location.pathname + (params.size ? `?${params}` : ''));

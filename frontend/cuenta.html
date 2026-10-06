@@ -8,7 +8,7 @@
   <meta name="description" content="Inicia sesión o crea tu cuenta gratuita de SnapFree.">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="cuenta.css?v=1">
+  <link rel="stylesheet" href="cuenta.css?v=2">
 </head>
 <body class="account-page">
   <main class="account-shell">
@@ -45,10 +45,7 @@
           <button id="registerTab" class="auth-tab" type="button" role="tab" aria-selected="false">Crear cuenta</button>
         </div>
 
-        <div id="googleButton" class="google-button" aria-label="Continuar con Google"></div>
-        <p id="googleMessage" class="form-message" role="status" aria-live="polite"></p>
-
-        <div class="separator"><span>o con tu correo</span></div>
+        <div class="auth-notice" role="status">El acceso con Google estará disponible pronto. Por ahora, entra o crea tu cuenta con correo.</div>
 
         <form id="accountForm" novalidate>
           <label class="field-label" for="email">Correo electrónico</label>
@@ -80,6 +77,6 @@
     </section>
   </main>
   <script src="auth.js?v=2"></script>
-  <script src="cuenta.js?v=1"></script>
+  <script src="cuenta.js?v=2"></script>
 </body>
 </html>

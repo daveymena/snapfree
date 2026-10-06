@@ -29,6 +29,7 @@ body.account-page{min-height:100vh;margin:0;color:var(--ink);font-family:Inter,u
 .google-button{display:flex;align-items:center;justify-content:center;gap:11px;width:100%;min-height:49px;border:1px solid #dce3ed;border-radius:11px;background:#fff;color:#25344a;font-family:inherit;font-size:14px;font-weight:650;cursor:pointer;transition:border-color .18s,transform .18s,box-shadow .18s}
 .google-button:hover{border-color:#b9c6d8;box-shadow:0 5px 16px rgba(30,54,90,.08);transform:translateY(-1px)}
 .separator{display:flex;align-items:center;gap:14px;margin:20px 0;color:#98a3b4;font-size:11px}.separator:before,.separator:after{content:"";height:1px;flex:1;background:var(--line)}
+.auth-notice{margin:0 0 22px;padding:12px 14px;border:1px solid #d6e8f5;border-radius:10px;background:#f1f8fc;color:#527187;font-size:12px;line-height:1.55}
 .field-label{display:block;margin:0 0 7px;color:#344259;font-size:12px;font-weight:700}
 .field-wrap{display:flex;align-items:center;height:49px;margin-bottom:17px;padding:0 12px;border:1px solid #dce3ed;border-radius:11px;background:#fff;transition:border-color .18s,box-shadow .18s}
 .field-wrap:focus-within{border-color:#10a7bf;box-shadow:0 0 0 3px rgba(16,167,191,.12)}
