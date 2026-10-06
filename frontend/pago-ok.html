@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pago recibido — SnapFree</title>
+<script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="style.css"></head>
+<body class="min-h-screen"><div class="bg-glow"></div><div class="bg-stars"></div>
+<main class="wrap py-10 text-center">
+<div class="card glow p-8" style="max-width:32rem;margin:0 auto">
+<h1 class="h2">⏳ Confirmando tu pago…</h1>
+<p id="msg" style="color:#5B6B84">Espera unos segundos.</p>
+<a href="index.html" class="btn-primary mt-4" style="display:none" id="back">Volver a descargar</a>
+</div></main>
+<script src="auth.js"></script>
+<script>(async()=>{
+ const q=new URLSearchParams(location.search);
+ const msg=document.getElementById('msg'), back=document.getElementById('back');
+ // PayPal devuelve ?token=ORDER_ID (return_url). MercadoPago activa vía webhook.
+ const order=q.get('token')||q.get('orderID');
+ if(order){
+  try{
+   const r=await fetch('/api/paypal/capture',{method:'POST',headers:{'Content-Type':'application/json',...SnapAuth.h()},body:JSON.stringify({orderID:order})});
+   const j=await r.json();
+   if(j.ok){msg.innerHTML=`✅ <b>¡PRO activado hasta ${new Date(j.planUntil).toLocaleDateString()}!</b> Ya tienes descargas ilimitadas.`;back.style.display='inline-block';return;}
+  }catch(e){}
+  msg.textContent='No pudimos confirmar el pago con PayPal. Si te cobraron, escríbenos y lo activamos.';
+  back.style.display='inline-block'; return;
+ }
+ // Vuelta de MercadoPago: el webhook lo activa en segundos; reintentamos el estado.
+ for(let i=0;i<6;i++){
+  await new Promise(r=>setTimeout(r,3000));
+  const s=await SnapAuth.quota();
+  if(s.pro){msg.innerHTML='✅ <b>¡PRO activado!</b> Ya tienes descargas ilimitadas.';back.style.display='inline-block';return;}
+  msg.textContent=`Confirmando con MercadoPago… (${i+1}/6)`;
+ }
+ msg.textContent='Tu pago está en proceso. En cuanto se apruebe, tu PRO se activa solo.';
+ back.style.display='inline-block';
+})();</script>
+</body>
+</html>

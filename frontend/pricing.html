@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planes PRO — SnapFree</title>
+<meta name="description" content="SnapFree gratis o PRO con descargas ilimitadas. Paga con PayPal o MercadoPago.">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen">
+<div class="bg-glow"></div><div class="bg-stars"></div>
+<main class="wrap py-10">
+<a href="index.html" class="btn-ghost">← Volver</a>
+<h1 class="h2 mt-4" style="font-size:2rem">Elige tu plan</h1>
+<p style="color:#5B6B84">Gratis para siempre. PRO para descargar sin límites.</p>
+<div id="accountBox" class="card p-5 mt-4"></div>
+<div class="grid md:grid-cols-3 gap-4 mt-4">
+  <div class="card p-6 text-center">
+    <h2 class="font-extrabold text-lg">Gratis</h2>
+    <p style="font-size:2rem;font-weight:900">$0</p>
+    <ul class="text-sm text-left space-y-1" style="color:#5B6B84">
+      <li>✅ 5 descargas al día</li><li>✅ Hasta 720p + MP3</li><li>✅ Todas las redes</li>
+    </ul>
+    <p class="text-sm mt-3">Tu plan actual si no pagas.</p>
+  </div>
+  <div class="card glow p-6 text-center">
+    <h2 class="font-extrabold text-lg">PRO Mensual ⭐</h2>
+    <p style="font-size:2rem;font-weight:900">$2.99<span style="font-size:.9rem;color:#64748B">/mes</span></p>
+    <ul class="text-sm text-left space-y-1" style="color:#5B6B84">
+      <li>✅ <b>Descargas ilimitadas</b></li><li>✅ 1080p + máxima calidad</li><li>✅ Sin esperas</li>
+    </ul>
+    <button class="btn-primary mt-4 w-full" onclick="pay('monthly','paypal')">Pagar con PayPal</button>
+    <button class="btn-ghost mt-2 w-full" onclick="pay('monthly','mp')">Pagar con MercadoPago</button>
+  </div>
+  <div class="card p-6 text-center">
+    <h2 class="font-extrabold text-lg">PRO Anual 💎</h2>
+    <p style="font-size:2rem;font-weight:900">$19.99<span style="font-size:.9rem;color:#64748B">/año</span></p>
+    <ul class="text-sm text-left space-y-1" style="color:#5B6B84">
+      <li>✅ Todo lo del mensual</li><li>✅ <b>4 meses gratis</b> vs mensual</li>
+    </ul>
+    <button class="btn-primary mt-4 w-full" onclick="pay('yearly','paypal')">Pagar con PayPal</button>
+    <button class="btn-ghost mt-2 w-full" onclick="pay('yearly','mp')">Pagar con MercadoPago</button>
+  </div>
+</div>
+<p class="text-xs mt-4" style="color:#94A3B8">Pagos seguros vía PayPal y MercadoPago. El plan se activa al confirmarse el pago. Cancela cuando quieras (conservas PRO hasta el fin del periodo).</p>
+</main>
+<script src="auth.js"></script>
+<script>
+async function paint(){const q=await SnapAuth.quota();const b=document.getElementById('accountBox');
+ if(q.login){b.innerHTML=`<b>${esc(q.email)}</b> · Plan: <b>${q.pro?'PRO ⭐ (hasta '+new Date(q.planUntil).toLocaleDateString()+')':'Gratis'}</b> · ${q.pro?'Descargas ilimitadas ∞':'Te quedan <b>'+q.left+'</b> de '+q.limit+' hoy'} <button class="btn-ghost" style="margin-left:8px" onclick="SnapAuth.logout();location.reload()">Salir</button>`;}
+ else{b.innerHTML=`No has iniciado sesión. <button class="btn-primary" style="margin-left:8px" onclick="goLogin()">Entrar / Crear cuenta</button>`;}}
+function esc(s){return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+async function goLogin(){const e=prompt('Tu correo:');if(!e)return;const p=prompt('Clave (6+ caracteres, si no tienes cuenta se crea):');if(!p)return;
+ try{await SnapAuth.login(e,p);}catch(err){await SnapAuth.register(e,p);}
+ location.reload();}
+async function pay(cycle,via){
+ const q=await SnapAuth.quota();
+ if(!q.login){alert('Primero entra o crea tu cuenta.');await goLogin();return;}
+ setStatus0('Abriendo pago seguro…');
+ const path=via==='paypal'?'/api/paypal/create':'/api/mp/create';
+ const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',...SnapAuth.h()},body:JSON.stringify({cycle})});
+ const j=await r.json();
+ if(!r.ok){alert(j.message||'Activa las claves de pago en el servidor.');setStatus0('');return;}
+ location.href=j.approve||j.init_point;
+}
+function setStatus0(t){const b=document.getElementById('accountBox');}
+paint();
+</script>
+</body>
+</html>
