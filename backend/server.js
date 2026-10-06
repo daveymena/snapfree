@@ -169,4 +169,7 @@ app.get('/api/dl', saas.quota, async (req,res)=>{
 });
 
 const PORT=process.env.PORT||3000;
-app.listen(PORT,()=>console.log('SnapFree backend en http://localhost:'+PORT));
+saas.ready().then(()=>app.listen(PORT,()=>console.log('SnapFree backend en http://localhost:'+PORT))).catch(error=>{
+ console.error('No se pudo inicializar la base de datos:',error.message);
+ process.exit(1);
+});

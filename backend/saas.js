@@ -50,13 +50,71 @@ async function initDb() {
         at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status TEXT
       );
+      CREATE TABLE IF NOT EXISTS ip_downloads (
+        day TEXT NOT NULL,
+        ip TEXT NOT NULL,
+        downloads INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, ip)
+      );
+      CREATE TABLE IF NOT EXISTS app_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
     `);
+    await migrateLegacyJson();
     console.log('🐘 PostgreSQL tables initialized');
   } catch (e) {
     console.error('🐘 DB Init Error:', e.message);
+    throw e;
   }
 }
 if (pool) dbInit = initDb();
+
+async function migrateLegacyJson() {
+  const migrationName = 'legacy-data-json-v1';
+  const done = await pool.query('SELECT 1 FROM app_migrations WHERE name = $1', [migrationName]);
+  if (done.rowCount) return;
+
+  let legacy = { users: {}, payments: [], ipdl: {} };
+  if (fs.existsSync(DBFILE)) legacy = JSON.parse(fs.readFileSync(DBFILE, 'utf8'));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const [rawEmail, user] of Object.entries(legacy.users || {})) {
+      const email = rawEmail.toLowerCase();
+      await client.query(
+        `INSERT INTO users (email, password, salt, plan, planUntil, downloads, created, googleId)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (email) DO NOTHING`,
+        [email, user.pass || user.password || null, user.salt || null, user.plan || 'free', user.planUntil || null,
+          JSON.stringify(user.downloads || {}), user.created || new Date().toISOString(), user.googleId || null],
+      );
+    }
+    for (const payment of legacy.payments || []) {
+      if (!payment.email) continue;
+      await client.query(
+        'INSERT INTO payments (email, cycle, externalId, at, status) VALUES ($1, $2, $3, $4, $5)',
+        [payment.email.toLowerCase(), payment.cycle || 'monthly', payment.externalId || payment.paypalOrder || null,
+          payment.at || new Date().toISOString(), payment.status || null],
+      );
+    }
+    for (const [day, ips] of Object.entries(legacy.ipdl || {})) {
+      for (const [ip, downloads] of Object.entries(ips || {})) {
+        await client.query(
+          'INSERT INTO ip_downloads (day, ip, downloads) VALUES ($1, $2, $3) ON CONFLICT (day, ip) DO NOTHING',
+          [day, ip, Number(downloads) || 0],
+        );
+      }
+    }
+    await client.query('INSERT INTO app_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [migrationName]);
+    await client.query('COMMIT');
+    console.log('[db] legacy JSON migrated to PostgreSQL');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 function load() {
   try { return JSON.parse(fs.readFileSync(DBFILE, 'utf8')); }
@@ -91,6 +149,14 @@ async function leftToday(u) {
 async function consume(emailOrIp, isIp) {
   const t = today();
   if (isIp) {
+    if (pool) {
+      await dbInit;
+      await pool.query(
+        'INSERT INTO ip_downloads (day, ip, downloads) VALUES ($1, $2, 1) ON CONFLICT (day, ip) DO UPDATE SET downloads = ip_downloads.downloads + 1',
+        [t, emailOrIp],
+      );
+      return true;
+    }
     const db = load();
     db.ipdl = db.ipdl || {}; db.ipdl[t] = db.ipdl[t] || {};
     db.ipdl[t][emailOrIp] = (db.ipdl[t][emailOrIp] || 0) + 1;
@@ -171,9 +237,16 @@ async function quota(req, res, next) {
     req.quotaLeft = await leftToday(await getUser(req.user.email));
   } else {
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'anon').toString().slice(0, 45);
-    const db = load();
-    db.ipdl = db.ipdl || {}; db.ipdl[today()] = db.ipdl[today()] || {};
-    const used = db.ipdl[today()][ip] || 0;
+    let used;
+    if (pool) {
+      await dbInit;
+      const { rows } = await pool.query('SELECT downloads FROM ip_downloads WHERE day = $1 AND ip = $2', [today(), ip]);
+      used = rows[0]?.downloads || 0;
+    } else {
+      const db = load();
+      db.ipdl = db.ipdl || {}; db.ipdl[today()] = db.ipdl[today()] || {};
+      used = db.ipdl[today()][ip] || 0;
+    }
     if (used >= FREE_DAILY) return res.status(402).json({ error: 'QUOTA_EXCEEDED', message: `Llegaste a tus ${FREE_DAILY} descargas gratis de hoy. Crea cuenta PRO para ilimitadas.`, pro: false });
     await consume(ip, true);
     req.quotaLeft = FREE_DAILY - used - 1;
@@ -469,7 +542,7 @@ function mount(app) {
       res.status(500).json({ error: 'TTS_FAILED', detail: e.message });
     }
   });
-  return { authOptional, authRequired, quota, FREE_DAILY, PRICES, isPro, leftToday, getUser, load };
+  return { authOptional, authRequired, quota, FREE_DAILY, PRICES, isPro, leftToday, getUser, load, ready: () => dbInit };
 }
 
 module.exports = { mount };
