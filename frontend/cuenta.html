@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f7fc">
+  <title>Tu cuenta | SnapFree</title>
+  <meta name="description" content="Inicia sesión o crea tu cuenta gratuita de SnapFree.">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="cuenta.css?v=1">
+</head>
+<body class="account-page">
+  <main class="account-shell">
+    <section class="account-story" aria-label="Ventajas de SnapFree">
+      <a class="account-brand" href="index.html" aria-label="SnapFree, inicio">
+        <span class="logo">SF</span><span>Snap<span class="brand-accent">Free</span></span>
+      </a>
+      <div class="story-copy">
+        <span class="eyebrow">TU CONTENIDO, A TU MANERA</span>
+        <h1>Todo listo para<br><span>seguir en marcha.</span></h1>
+        <p>Guarda tus preferencias, consulta tu plan y descarga con una experiencia sencilla y segura.</p>
+        <ul class="benefit-list">
+          <li><span class="benefit-icon">✓</span><span><b>Empieza gratis</b><small>5 descargas al día con tu cuenta.</small></span></li>
+          <li><span class="benefit-icon">↗</span><span><b>Tu cuenta te acompaña</b><small>Accede desde tus dispositivos.</small></span></li>
+          <li><span class="benefit-icon">⌑</span><span><b>Más opciones con PRO</b><small>Revisa planes cuando quieras.</small></span></li>
+        </ul>
+      </div>
+      <div class="story-footer">© 2026 SnapFree <span>·</span> Privacidad primero</div>
+    </section>
+
+    <section class="account-panel" aria-label="Acceso a SnapFree">
+      <div class="mobile-brand"><span class="logo">SF</span><b>Snap<span class="brand-accent">Free</span></b></div>
+
+      <div id="authCard" class="auth-card">
+        <a class="back-link" href="index.html"><span aria-hidden="true">←</span> Volver al inicio</a>
+        <div class="auth-heading">
+          <p class="eyebrow">BIENVENIDO A SNAPFREE</p>
+          <h2 id="formTitle">Inicia sesión</h2>
+          <p id="formSubtitle">Continúa donde lo dejaste.</p>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Tipo de acceso">
+          <button id="loginTab" class="auth-tab is-active" type="button" role="tab" aria-selected="true">Iniciar sesión</button>
+          <button id="registerTab" class="auth-tab" type="button" role="tab" aria-selected="false">Crear cuenta</button>
+        </div>
+
+        <div id="googleButton" class="google-button" aria-label="Continuar con Google"></div>
+        <p id="googleMessage" class="form-message" role="status" aria-live="polite"></p>
+
+        <div class="separator"><span>o con tu correo</span></div>
+
+        <form id="accountForm" novalidate>
+          <label class="field-label" for="email">Correo electrónico</label>
+          <div class="field-wrap"><span class="field-icon" aria-hidden="true">✉</span><input id="email" name="email" type="email" autocomplete="email" placeholder="tu@correo.com" required></div>
+
+          <div class="password-label-row">
+            <label class="field-label" for="password">Contraseña</label>
+            <a id="forgotPassword" class="forgot-link" href="#" hidden>¿La olvidaste?</a>
+          </div>
+          <div class="field-wrap"><span class="field-icon" aria-hidden="true">⌑</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres" minlength="6" required><button id="togglePassword" class="show-password" type="button" aria-label="Mostrar contraseña">Mostrar</button></div>
+
+          <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+          <button id="submitButton" class="submit-button" type="submit"><span>Iniciar sesión</span><span aria-hidden="true">→</span></button>
+        </form>
+
+        <p class="legal-copy">Al continuar, aceptas nuestros <a href="privacidad.html">términos y política de privacidad</a>.</p>
+      </div>
+
+      <div id="signedInCard" class="auth-card signed-in-card" hidden>
+        <div class="signed-icon">✓</div>
+        <p class="eyebrow">SESIÓN ACTIVA</p>
+        <h2>Qué bueno verte.</h2>
+        <p id="signedInEmail" class="signed-email"></p>
+        <a class="submit-button continue-button" href="index.html">Continuar a SnapFree <span>→</span></a>
+        <button id="logoutButton" class="logout-button" type="button">Cerrar sesión</button>
+      </div>
+
+      <footer class="panel-footer"><a href="privacidad.html">Privacidad</a><a href="index.html#faq">Ayuda</a><span>Hecho para descargar fácil</span></footer>
+    </section>
+  </main>
+  <script src="auth.js?v=2"></script>
+  <script src="cuenta.js?v=1"></script>
+</body>
+</html>

@@ -1,1 +1,1 @@
-{"name":"snapfree-backend","version":"1.0.0","description":"Backend híbrido yt-dlp + Cobalt para SnapFree","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"cors":"^2.8.5","express":"^4.19.2","jsonwebtoken":"^9.0.3","node-fetch":"^2.7.0"}}
+{"name":"snapfree-backend","version":"1.0.0","description":"Backend híbrido yt-dlp + Cobalt para SnapFree","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"cors":"^2.8.5","express":"^4.19.2","jsonwebtoken":"^9.0.3","node-fetch":"^2.7.0","pg":"^8.23.1"}}

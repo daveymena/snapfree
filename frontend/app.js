@@ -278,19 +278,6 @@ $('tabHist').onclick=e=>{e.preventDefault();window.scrollTo({top:document.body.s
 // PWA install
 let deferred=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('btnInstall').classList.remove('hidden');});
 if($('btnInstall'))$('btnInstall').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;}};
-// Cuenta: entrar/crear o ver plan
-if($('btnAccount'))$('btnAccount').onclick=async()=>{
- try{
-  const q=await (window.SnapAuth?SnapAuth.quota():null);
-  if(q&&q.login){
-   if(confirm(`Sesión: ${q.email}\nPlan: ${q.pro?'PRO ⭐':'Gratis'}\n¿Cerrar sesión?`)){SnapAuth.logout();refreshQuota();}
-   return;
-  }
- }catch(e){}
- const e=prompt('Tu correo:');if(!e)return;
- const p=prompt('Clave (6+ caracteres; si no tienes cuenta se crea):');if(!p)return;
- try{await SnapAuth.login(e,p);alert('¡Bienvenido!');}
- catch(err){try{await SnapAuth.register(e,p);alert('¡Cuenta creada! Tienes 5 descargas gratis hoy.');}catch(err2){alert(err2.message||'No se pudo entrar.');return;}}
- refreshQuota();
-};
+// Cuenta: usar la página completa y profesional de acceso/registro.
+if($('btnAccount'))$('btnAccount').onclick=()=>{ location.href='cuenta.html'; };
 renderHist();paintBadges('desconocida');refreshQuota();

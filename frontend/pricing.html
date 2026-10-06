@@ -49,14 +49,11 @@
 <script>
 async function paint(){const q=await SnapAuth.quota();const b=document.getElementById('accountBox');
  if(q.login){b.innerHTML=`<b>${esc(q.email)}</b> · Plan: <b>${q.pro?'PRO ⭐ (hasta '+new Date(q.planUntil).toLocaleDateString()+')':'Gratis'}</b> · ${q.pro?'Descargas ilimitadas ∞':'Te quedan <b>'+q.left+'</b> de '+q.limit+' hoy'} <button class="btn-ghost" style="margin-left:8px" onclick="SnapAuth.logout();location.reload()">Salir</button>`;}
- else{b.innerHTML=`No has iniciado sesión. <button class="btn-primary" style="margin-left:8px" onclick="goLogin()">Entrar / Crear cuenta</button>`;}}
+  else{b.innerHTML=`No has iniciado sesión. <a class="btn-primary" style="margin-left:8px" href="cuenta.html?next=pricing.html">Entrar / Crear cuenta</a>`;}}
 function esc(s){return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
-async function goLogin(){const e=prompt('Tu correo:');if(!e)return;const p=prompt('Clave (6+ caracteres, si no tienes cuenta se crea):');if(!p)return;
- try{await SnapAuth.login(e,p);}catch(err){await SnapAuth.register(e,p);}
- location.reload();}
 async function pay(cycle,via){
- const q=await SnapAuth.quota();
- if(!q.login){alert('Primero entra o crea tu cuenta.');await goLogin();return;}
+  const q=await SnapAuth.quota();
+  if(!q.login){location.href='cuenta.html?next=pricing.html';return;}
  setStatus0('Abriendo pago seguro…');
  const path=via==='paypal'?'/api/paypal/create':'/api/mp/create';
  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',...SnapAuth.h()},body:JSON.stringify({cycle})});
