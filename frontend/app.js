@@ -5,7 +5,7 @@ const COBALT=['https://cobalt-api.kwiatekmiki.com','https://co.wukko.xyz','https
 function detect(url=''){url=url.toLowerCase();
  if(/youtu\.?be/.test(url))return'youtube'; if(/tiktok/.test(url))return'tiktok';
  if(/instagram/.test(url))return'instagram'; if(/facebook|fb\.watch|fb\.com/.test(url))return'facebook';
- if(/aliexpress\.|alibaba\.com/.test(url))return'aliexpress'; return'desconocida';}
+ if(/aliexpress(?:\.|-media\.)|alibaba\.com|cloud\.video\.taobao\.com/.test(url))return'aliexpress'; return'desconocida';}
 function paintBadges(net){document.querySelectorAll('#badges .plat, #badges .badge').forEach(b=>b.classList.toggle('on',b.dataset.net===net));}
 function setStatus(t){$('status').textContent=t;}
 function saveHist(item){try{const h=JSON.parse(localStorage.getItem('snapfree_hist')||'[]');h.unshift({t:Date.now(),...item});localStorage.setItem('snapfree_hist',JSON.stringify(h.slice(0,50)));renderHist();}catch{}}
@@ -30,8 +30,8 @@ async function viaBackend(url,quality,signal){
  const base=BACKEND(); const endpoint=base? base+'/api/info' : '/api/info';
  const auth=(window.SnapAuth&&SnapAuth.h())||{};
  const r=await fetchT(endpoint,{method:'POST',headers:{'Content-Type':'application/json',...auth},body:JSON.stringify({url,quality})},45000,signal);
- if(r.status===402){const j=await r.json().catch(()=>({}));const e=new Error('quota');e.quota=j;throw e;}
- if(!r.ok) throw new Error('service'); // detalle interno solo en consola
+  if(r.status===402){const j=await r.json().catch(()=>({}));const e=new Error('quota');e.quota=j;throw e;}
+  if(!r.ok){const j=await r.json().catch(()=>({}));const e=new Error(j.error||'service');e.status=r.status;e.backend=j;throw e;}
  return r.json(); // {title,thumbnail,duration,uploader,direct,net}
 }
 // Refresca la píldora de cuota + botón de cuenta
@@ -91,6 +91,7 @@ async function resolve(url,quality,signal){
    return {title:b.title||url, thumbnail:b.thumbnail||'', duration:b.duration||'', uploader:b.uploader||'', direct:b.direct, net:b.net||net};}
   catch(e){
    if(e&&(e.name==='AbortError')) throw e;
+   if(e&&e.status===422&&net==='aliexpress') throw e;
    console.warn('[interno] principal fallo:',e); setStatus('⚠️ Reintentando por conexión alternativa…');
   }
  }
@@ -244,11 +245,13 @@ async function handleOne(url,quality){url=url.trim();if(!url)return null;
  resolveAbort=new AbortController(); showResolving(true);
  try{const info=await resolve(url,quality,resolveAbort.signal);showResult(info,url);return info;}
   catch(e){
-   if(e&&(e.name==='AbortError'||e.name==='TimeoutError')){
-    setStatus('✖ Búsqueda cancelada o agotó el tiempo. Revisa el enlace e intenta de nuevo.');
-   } else if(e&&e.message==='quota'){
-    quotaError();
-   } else {
+    if(e&&(e.name==='AbortError'||e.name==='TimeoutError')){
+     setStatus('✖ Búsqueda cancelada o agotó el tiempo. Revisa el enlace e intenta de nuevo.');
+    } else if(e&&e.message==='quota'){
+     quotaError();
+    } else if(e&&e.status===422&&detect(url)==='aliexpress'){
+     setStatus('AliExpress bloqueó la lectura automática de este producto. Abre el mini-video, haz clic derecho → “Copiar dirección del video” y pega ese enlace directo en este mismo campo.');
+    } else {
     console.warn('[interno] búsqueda fallo:',e);
     setStatus('❌ No encontramos ese video. Verifica que el enlace esté completo, que el video sea público e intenta de nuevo.');
    }

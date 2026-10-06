@@ -48,6 +48,6 @@ def main():
         title = (t[0].split("- AliExpress")[0].strip() if t else "video_aliexpress")
         th = re.findall(r"https?://[^\s\"'<>\\]*aliexpress-media\.com/kf/[^\s\"'<>\\]*?\.jpg", html)
         out({"title": title, "thumbnail": th[0] if th else "", "direct": mp4s[0]})
-    out({"error": "ALI_NODATA: la pagina no trajo el video en el HTML (AliExpress lo carga con JavaScript protegido). Copia la URL directa del mini-video desde tu navegador y pegala aqui."})
+    out({"error": "ALI_NODATA: AliExpress bloqueó la lectura automática de este producto desde el servidor. Abre el producto en tu navegador, reproduce el mini-video, haz clic derecho en el video y elige Copiar dirección del video. Pega ese enlace directo en el mismo campo de SnapFree; los enlaces MP4 de AliExpress sí se aceptan."})
 
 main()

@@ -5,7 +5,6 @@ const express = require('express');
 const cors = require('cors');
 const { execFile, spawn } = require('child_process');
 const path = require('path');
-const { chromium } = require('playwright-core');
 const app = express();
 app.use(cors()); app.use(express.json({limit:'1mb'}));
 app.use(express.static(path.join(__dirname,'..','frontend')));
@@ -30,79 +29,14 @@ async function fetchT(url,opts={},ms=15000){
 function detect(url=''){url=url.toLowerCase();
  if(/youtu\.?be/.test(url))return'youtube'; if(/tiktok/.test(url))return'tiktok';
  if(/instagram/.test(url))return'instagram'; if(/facebook|fb\.watch|fb\.com/.test(url))return'facebook';
- if(/aliexpress\.|alibaba\.com/.test(url))return'aliexpress'; return'desconocida';}
-let aliBrowserPromise;
-let aliSlots = 0;
-const aliWaiters = [];
-async function acquireAliSlot(){
- if(aliSlots<1){aliSlots++;return;}
- if(aliWaiters.length>=3) throw new Error('ALI_BUSY');
- await new Promise(resolve=>aliWaiters.push(resolve));
-}
-function releaseAliSlot(){
- const next=aliWaiters.shift();
- if(next) next(); else aliSlots=Math.max(0,aliSlots-1);
-}
-async function aliBrowserExtract(url){
- await acquireAliSlot();
- let context;
- try{
-  if(!aliBrowserPromise){
-   aliBrowserPromise=chromium.launch({
-    headless:true,
-    executablePath:process.env.CHROMIUM_PATH||undefined,
-    args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu'],
-   }).catch(error=>{aliBrowserPromise=null;throw error;});
-  }
-  const browser=await aliBrowserPromise;
-  context=await browser.newContext({
-   locale:'es-CO',
-   timezoneId:'America/Bogota',
-   viewport:{width:1360,height:768},
-   userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-   extraHTTPHeaders:{'Accept-Language':'es-CO,es;q=0.9,en;q=0.8'},
-  });
-  const page=await context.newPage();
-  await page.goto(url,{waitUntil:'domcontentloaded',timeout:40000});
-  await page.waitForFunction(()=>[...document.querySelectorAll('video')].some(v=>v.currentSrc||v.querySelector('source')?.src),null,{timeout:20000});
-  const result=await page.evaluate(()=>{
-   const videos=[...document.querySelectorAll('video')].map(v=>({
-    direct:v.currentSrc||v.querySelector('source')?.src||'',
-    thumbnail:v.poster||'',
-    width:v.videoWidth||v.width||0,
-    height:v.videoHeight||v.height||0,
-   })).filter(v=>v.direct);
-   const video=videos.find(v=>/\.mp4(?:\?|$)|\.m3u8(?:\?|$)/i.test(v.direct)&&/aliexpress-media\.com|taobao\.com/i.test(v.direct))||videos[0];
-   return video?{...video,title:document.querySelector('h1')?.innerText?.trim()||document.title||'AliExpress'}:null;
-  });
-  if(!result||!result.direct) throw new Error('ALI_NO_VIDEO');
-  const videoHost=new URL(result.direct).hostname.toLowerCase();
-  if(!videoHost.endsWith('aliexpress-media.com')&&!videoHost.endsWith('taobao.com')) throw new Error('ALI_UNEXPECTED_VIDEO_HOST');
-  return result;
- }finally{
-  if(context) await context.close().catch(()=>{});
-  releaseAliSlot();
- }
-}
-function aliExtractHtml(url){
+ if(/aliexpress(?:\.|-media\.)|alibaba\.com|cloud\.video\.taobao\.com/.test(url))return'aliexpress'; return'desconocida';}
+function aliExtract(url){
  return new Promise((res,rej)=>{
   execFile('python3',['ali_extract.py',url],{timeout:30000,cwd:__dirname},(err,stdout)=>{
    if(err) return rej(err);
    try{res(JSON.parse(stdout.trim().split('\n').pop()));}catch(e){rej(e);}
   });
  });
-}
-async function aliExtract(url){
- if(/\.mp4(?:\?|$)|\.m3u8(?:\?|$)/i.test(url)||/video\.aliexpress-media\.com|cloud\.video\.taobao\.com/i.test(url)){
-  return {title:decodeURIComponent(url.split('/').pop().split('?')[0])||'video_aliexpress.mp4',thumbnail:'',direct:url};
- }
- try{return await aliBrowserExtract(url);}
- catch(browserError){
-  try{const fallback=await aliExtractHtml(url);if(fallback&&fallback.direct)return fallback;}catch{}
-  if(browserError.message==='ALI_BUSY') throw new Error('AliExpress está ocupado. Espera unos segundos e inténtalo otra vez.');
-  console.warn('[AliExpress] No se pudo renderizar el producto:',browserError.message);
-  throw new Error('AliExpress no entregó un video cargable para este producto.');
- }
 }
 function ytdlpJson(url){
  return new Promise((res,rej)=>{
@@ -161,7 +95,7 @@ app.post('/api/info',async(req,res)=>{
  const net=detect(url);
  // Restricción gratis: 1080p/máxima solo PRO (al resto se le da 720p).
  let proUser=false;
- if(req.user){ try{ const db0=saas.load(); proUser=saas.isPro(saas.getUser(db0,req.user.email)); }catch(e){} }
+  if(req.user){ try{ proUser=saas.isPro(await saas.getUser(req.user.email)); }catch(e){} }
  if(!proUser && (quality==='max'||quality==='1080')) quality='720';
  // Reloj global: la respuesta nunca tarda más de 75s (yt-dlp 25s + cobalt 6×15s máx).
  const timeout=setTimeout(()=>{ if(!res.headersSent) res.status(504).json({error:'Tiempo agotado resolviendo el video. Intenta de nuevo.'}); },75000);
@@ -171,8 +105,8 @@ app.post('/api/info',async(req,res)=>{
   try{
    const a=await aliExtract(url);
    if(a.error) return done(422,{error:a.error});
-    return done(200,{title:a.title,uploader:'AliExpress',thumbnail:a.thumbnail||'',duration:'',net,direct:a.direct,via:'aliexpress-browser'});
-  }catch(e){ return done(502,{error:'No se pudo leer el producto de AliExpress.',detail:String(e.message||e).slice(0,200)}); }
+    return done(200,{title:a.title,uploader:'AliExpress',thumbnail:a.thumbnail||'',duration:'',net,direct:a.direct,via:'aliexpress-direct'});
+   }catch(e){ return done(502,{error:'No se pudo leer el producto de AliExpress.',detail:String(e.message||e).slice(0,200)}); }
  }
  // Método 1: yt-dlp
  try{
