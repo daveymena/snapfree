@@ -45,8 +45,10 @@ const fs = require('fs');
 const os = require('os');
 let cookiesFile='';
 if(process.env.YTDLP_COOKIES){
- cookiesFile=path.join(os.tmpdir(),'snapfree-cookies.txt');
- fs.writeFileSync(cookiesFile,process.env.YTDLP_COOKIES.replace(/\\n/g,'\n'));
+ cookiesFile=path.join(os.tmpdir(),`snapfree-cookies-${process.pid}.txt`);
+ fs.writeFileSync(cookiesFile,process.env.YTDLP_COOKIES.replace(/\\n/g,'\n'),{mode:0o600});
+ fs.chmodSync(cookiesFile,0o600);
+ process.once('exit',()=>{try{fs.unlinkSync(cookiesFile);}catch{}});
 }
 function ytdlpBase(){
  // node: el contenedor ya lo trae y yt-dlp lo necesita para los retos JS de YouTube
