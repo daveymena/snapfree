@@ -38,10 +38,29 @@ function aliExtract(url){
   });
  });
 }
+// YouTube bloquea las IP de servidores ("Sign in to confirm you're not a bot").
+// Salidas: YTDLP_COOKIES = contenido de un cookies.txt (formato Netscape) de una cuenta
+// secundaria, y/o YTDLP_PROXY = proxy residencial (http://usuario:clave@host:puerto).
+const fs = require('fs');
+const os = require('os');
+let cookiesFile='';
+if(process.env.YTDLP_COOKIES){
+ cookiesFile=path.join(os.tmpdir(),'snapfree-cookies.txt');
+ fs.writeFileSync(cookiesFile,process.env.YTDLP_COOKIES.replace(/\\n/g,'\n'));
+}
+function ytdlpBase(){
+ // node: el contenedor ya lo trae y yt-dlp lo necesita para los retos JS de YouTube
+ // (sin runtime avisa "extraction without a JS runtime has been deprecated").
+ const a=['--js-runtimes','node','--socket-timeout','10'];
+ if(cookiesFile) a.push('--cookies',cookiesFile);
+ if(process.env.YTDLP_PROXY) a.push('--proxy',process.env.YTDLP_PROXY);
+ return a;
+}
+const isBotBlock=msg=>/confirm you.?re not a bot|Sign in to confirm/i.test(msg||'');
 function ytdlpJson(url){
  return new Promise((res,rej)=>{
-  execFile('yt-dlp',['--dump-single-json','--no-playlist','--no-warnings',url],{timeout:25000,maxBuffer:20*1024*1024},(err,stdout)=>{
-   if(err) return rej(err);
+  execFile('yt-dlp',[...ytdlpBase(),'--dump-single-json','--no-playlist','--no-warnings',url],{timeout:32000,maxBuffer:20*1024*1024},(err,stdout,stderr)=>{
+   if(err){ err.message=(stderr||'')+' '+err.message; return rej(err); }
    try{res(JSON.parse(stdout));}catch(e){rej(e);}
   });
  });
@@ -71,7 +90,7 @@ async function cobaltDirect(url,quality){
  for(const base of COBALT){
   for(const p of ['/','/api/get']){
    try{
-    const r=await fetchT(base+p,{method:'POST',headers:cobaltHeaders(),body:JSON.stringify(body)},15000);
+    const r=await fetchT(base+p,{method:'POST',headers:cobaltHeaders(),body:JSON.stringify(body)},8000);
     if(!r.ok) continue; const j=await r.json();
     if((j.status==='tunnel'||j.status==='redirect')&&j.url)
      return {direct:j.url,filename:j.filename||'',tunneled:j.status==='tunnel'};
@@ -97,8 +116,10 @@ app.post('/api/info',async(req,res)=>{
  let proUser=false;
   if(req.user){ try{ proUser=saas.isPro(await saas.getUser(req.user.email)); }catch(e){} }
  if(!proUser && (quality==='max'||quality==='1080')) quality='720';
- // Reloj global: la respuesta nunca tarda más de 75s (yt-dlp 25s + cobalt 6×15s máx).
- const timeout=setTimeout(()=>{ if(!res.headersSent) res.status(504).json({error:'Tiempo agotado resolviendo el video. Intenta de nuevo.'}); },75000);
+ // Reloj global: por debajo de los 50s que espera el navegador, para que siempre
+ // reciba un error claro en vez de abortar a ciegas (yt-dlp 32s + Cobalt solo con clave).
+ // YouTube varía de 4s a 24s para el mismo video (medido 06-10).
+ const timeout=setTimeout(()=>{ if(!res.headersSent) res.status(504).json({error:'Tiempo agotado resolviendo el video. Intenta de nuevo.'}); },45000);
  const done=(code,obj)=>{ clearTimeout(timeout); if(!res.headersSent) res.status(code).json(obj); };
  // Método 0: AliExpress (extractor Python propio; yt-dlp no soporta paginas de producto)
  if(net==='aliexpress'){
@@ -121,7 +142,14 @@ app.post('/api/info',async(req,res)=>{
    direct=pick.format?.url || info.webpage_url;
   }
   return done(200,{title:info.title,uploader:info.uploader||info.channel,thumbnail:info.thumbnail,duration:info.duration_string||info.duration,net,direct,via:'yt-dlp'});
- }catch(e){ console.warn('yt-dlp fallo, usando cobalt:',e.message?.slice(0,200)); }
+ }catch(e){
+  console.warn('yt-dlp fallo:',e.message?.slice(0,200));
+  // Sin clave Cobalt no responde: esperar 90s para el mismo error era el "se queda buscando".
+  if(net==='youtube'&&isBotBlock(e.message)&&!COBALT_KEY)
+   return done(503,{error:'YouTube está bloqueando temporalmente al servidor. Intenta en unos minutos.',code:'youtube-bloqueado'});
+  if(!COBALT_KEY)
+   return done(502,{error:'No se pudo resolver. Verifica que el video sea público.',detail:String(e.message||e).slice(0,200)});
+ }
  // Método 2: cobalt (siempre con tunnel = descarga, nunca redirect = reproduce)
  try{
   const c=await cobaltDirect(url,quality);
@@ -138,16 +166,29 @@ app.get('/api/download', saas.quota, (req,res)=>{
  if(!url) return res.status(400).send('falta url');
   const isAudio=quality==='mp3';
   const q=parseInt(quality)||720;
-  // yt-dlp stream con ffmpeg: une video+audio y fuerza mp4/mp3 con sonido.
-  const args=isAudio
-   ? ['-f','bestaudio','--extract-audio','--audio-format','mp3','-o','-','--no-playlist','--no-warnings',url]
-   : ['-f',`bv*[height<=${q}]+ba/b[height<=${q}]/b`,`--merge-output-format`,`mp4`,'-o','-','--no-playlist','--no-warnings',url];
+  // Con "-o -" yt-dlp NO aplica --extract-audio ni --merge-output-format: escribía
+  // MPEG-TS (con AV1 como "bin_data": el reproductor mostraba solo audio) y un "mp3"
+  // que era WebM/Opus. Por eso la salida pasa por ffmpeg, que arma el archivo real.
+  // H.264+AAC primero: se reproduce en cualquier celular y se copia sin recodificar.
+  const fmt=isAudio
+   ? 'bestaudio'
+   : `bv*[height<=${q}][vcodec^=avc1]+ba[ext=m4a]/b[height<=${q}][vcodec^=avc1]/bv*[height<=${q}]+ba/b[height<=${q}]/b`;
+  const ytArgs=[...ytdlpBase(),'-f',fmt,'-o','-','--no-playlist','--no-warnings','--quiet',url];
+  const ffArgs=isAudio
+   ? ['-hide_banner','-loglevel','error','-i','pipe:0','-vn','-c:a','libmp3lame','-b:a','192k','-f','mp3','pipe:1']
+   : ['-hide_banner','-loglevel','error','-i','pipe:0','-c','copy','-bsf:a','aac_adtstoasc','-f','mp4','-movflags','frag_keyframe+empty_moov+default_base_moof','pipe:1'];
   res.setHeader('Content-Type',isAudio?'audio/mpeg':'video/mp4');
   res.setHeader('Content-Disposition',`attachment; filename="snapfree-${Date.now()}.${isAudio?'mp3':'mp4'}"`);
- const p=spawn('yt-dlp',args);
- p.stdout.pipe(res);
- p.stderr.on('data',d=>process.stderr.write(d));
- p.on('error',()=>res.redirect(302,url)); // si no hay yt-dlp, redirige
+ const yt=spawn('yt-dlp',ytArgs);
+ const ff=spawn('ffmpeg',ffArgs);
+ yt.stdout.pipe(ff.stdin);
+ ff.stdout.pipe(res);
+ ff.stdin.on('error',()=>{}); // ffmpeg cerró antes (error de formato): no tumbar el proceso
+ yt.stderr.on('data',d=>process.stderr.write(d));
+ ff.stderr.on('data',d=>process.stderr.write(d));
+ yt.on('error',()=>{ ff.kill(); if(!res.headersSent) res.redirect(302,url); }); // sin yt-dlp, redirige
+ ff.on('error',()=>{ yt.kill(); if(!res.headersSent) res.status(500).end(); });
+ res.on('close',()=>{ yt.kill(); ff.kill(); }); // el usuario canceló: no seguir bajando en el servidor
 });
 
 // NUEVO: proxy de descarga forzada — evita que el video se abra en otra pestaña.

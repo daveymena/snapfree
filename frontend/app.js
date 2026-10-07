@@ -29,7 +29,7 @@ async function fetchT(url,opts={},ms=20000,externalSignal){
 async function viaBackend(url,quality,signal){
  const base=BACKEND(); const endpoint=base? base+'/api/info' : '/api/info';
  const auth=(window.SnapAuth&&SnapAuth.h())||{};
- const r=await fetchT(endpoint,{method:'POST',headers:{'Content-Type':'application/json',...auth},body:JSON.stringify({url,quality})},45000,signal);
+ const r=await fetchT(endpoint,{method:'POST',headers:{'Content-Type':'application/json',...auth},body:JSON.stringify({url,quality})},50000,signal);
   if(r.status===402){const j=await r.json().catch(()=>({}));const e=new Error('quota');e.quota=j;throw e;}
   if(!r.ok){const j=await r.json().catch(()=>({}));const e=new Error(j.error||'service');e.status=r.status;e.backend=j;throw e;}
  return r.json(); // {title,thumbnail,duration,uploader,direct,net}
@@ -92,6 +92,10 @@ async function resolve(url,quality,signal){
   catch(e){
    if(e&&(e.name==='AbortError')) throw e;
    if(e&&e.status===422&&net==='aliexpress') throw e;
+   // El backend respondió: ya probó todo lo que hay. Repetir Cobalt desde aquí solo
+   // sumaba hasta 90s de espera para terminar en el mismo error.
+   if(e&&e.status&&e.message!=='quota') throw e;
+   if(e&&e.message==='quota') throw e;
    console.warn('[interno] principal fallo:',e); setStatus('⚠️ Reintentando por conexión alternativa…');
   }
  }
@@ -125,14 +129,9 @@ function showResult(info,origUrl){
  // Al pulsar se prepara el enlace más reciente y se descarga directo. Nada de pestañas.
  const fname=filenameFor(info,origUrl);
  $('btnDownload').removeAttribute('href'); $('btnDownload').removeAttribute('target');
- $('btnDownload').onclick=async()=>{
-  if(resolving) return;
-  setStatus('🔄 Preparando tu descarga…');
-  resolveAbort=new AbortController(); showResolving(true);
-  try{ const fresh=await resolve(origUrl,$('quality').value,resolveAbort.signal); await forceDownload(fresh.direct, filenameFor(fresh,origUrl)); }
-  catch(e){ if(!(e&&(e.name==='AbortError'))) await forceDownload(info.direct,fname); }
-  finally{ showResolving(false); resolveAbort=null; }
- };
+ // El enlace recién resuelto se usa tal cual: volver a resolver al pulsar repetía
+ // toda la búsqueda (hasta 45s más) antes de empezar a bajar.
+ $('btnDownload').onclick=()=>{ if(!resolving) forceDownload(info.direct,fname); };
  $('btnCopy').onclick=()=>{navigator.clipboard.writeText(info.direct);setStatus('✅ Enlace copiado.');};
  saveHist({url:origUrl,title:info.title,net:info.net,direct:info.direct});
  setStatus('✅ Listo. Toca Descargar ahora.');
@@ -251,6 +250,8 @@ async function handleOne(url,quality){url=url.trim();if(!url)return null;
      quotaError();
     } else if(e&&e.status===422&&detect(url)==='aliexpress'){
      setStatus('AliExpress bloqueó la lectura automática de este producto. Abre el mini-video, haz clic derecho → “Copiar dirección del video” y pega ese enlace directo en este mismo campo.');
+    } else if(e&&e.backend&&(e.status===503||e.status===504)&&e.backend.error){
+     setStatus('⚠️ '+e.backend.error);
     } else {
     console.warn('[interno] búsqueda fallo:',e);
     setStatus('❌ No encontramos ese video. Verifica que el enlace esté completo, que el video sea público e intenta de nuevo.');
